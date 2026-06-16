@@ -70,12 +70,18 @@ if macro_data:
                 # Sparkline chart
                 hist = info['history']
                 fig = go.Figure()
-                # Determine color based on pct_change over the 30 days
-                color = '#ef4444' if hist.iloc[-1] > hist.iloc[0] else '#3b82f6'
+                
                 if isinstance(hist, pd.DataFrame):
                     y_vals = hist.iloc[:, 0].values
                 else:
                     y_vals = hist.values
+                    
+                # Determine color based on pct_change over the 30 days
+                if len(y_vals) >= 2:
+                    color = '#ef4444' if y_vals[-1] > y_vals[0] else '#3b82f6'
+                else:
+                    color = '#3b82f6'
+                    
                 fig.add_trace(go.Scatter(x=hist.index, y=y_vals, mode='lines', line=dict(color=color, width=2)))
                 fig.update_layout(
                     height=100,
