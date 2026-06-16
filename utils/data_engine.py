@@ -223,26 +223,56 @@ def get_krx_stock_list():
         pass
         
     try:
-        from pykrx import stock
-        date_str = get_latest_valid_date()
-        ohlcv = stock.get_market_ohlcv_by_ticker(date_str, market="ALL")
-        cap = stock.get_market_cap_by_ticker(date_str, market="ALL")
+        import requests
+        from bs4 import BeautifulSoup
+        import pandas as pd
         
-        df = pd.DataFrame(index=ohlcv.index)
-        df['Code'] = df.index
-        df['Name'] = cap['종목명'] if '종목명' in cap.columns else [stock.get_market_ticker_name(x) for x in df.index]
-        df['Close'] = ohlcv['종가'] if '종가' in ohlcv.columns else 0
-        df['ChagesRatio'] = ohlcv['등락률'] if '등락률' in ohlcv.columns else 0
-        df['Volume'] = ohlcv['거래량'] if '거래량' in ohlcv.columns else 0
-        df['Amount'] = ohlcv['거래대금'] if '거래대금' in ohlcv.columns else (cap['거래대금'] if '거래대금' in cap.columns else 0)
-        df['Marcap'] = cap['시가총액'] if '시가총액' in cap.columns else 0
-        df['Stocks'] = cap['상장주식수'] if '상장주식수' in cap.columns else 1
-        df['Market'] = 'KOSPI' # default
-        
-        return df
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        results = []
+        for sosok in [0, 1]:  # 0: KOSPI, 1: KOSDAQ
+            for page in range(1, 21): # Top 1000 stocks per market
+                url = f"https://finance.naver.com/sise/sise_market_sum.naver?sosok={sosok}&page={page}"
+                res = requests.get(url, headers=headers, timeout=5)
+                soup = BeautifulSoup(res.text, 'html.parser')
+                table = soup.select_one('table.type_2')
+                if not table: continue
+                
+                rows = table.select('tbody tr')
+                for row in rows:
+                    cols = row.select('td')
+                    if len(cols) > 5:
+                        a_tag = cols[1].select_one('a')
+                        if a_tag:
+                            code = a_tag['href'].split('code=')[-1]
+                            name = a_tag.text.strip()
+                            marcap = cols[6].text.replace(',', '').strip()
+                            close = cols[2].text.replace(',', '').strip()
+                            volume = cols[9].text.replace(',', '').strip()
+                            changes_ratio = cols[4].text.replace('%', '').replace('+', '').replace('-', '-').strip()
+                            
+                            try:
+                                close_val = float(close) if close else 0
+                                vol_val = float(volume) if volume else 0
+                                results.append({
+                                    'Code': code,
+                                    'Name': name,
+                                    'Marcap': float(marcap) * 100000000 if marcap else 0,
+                                    'Volume': vol_val,
+                                    'Close': close_val,
+                                    'ChagesRatio': float(changes_ratio) if changes_ratio else 0,
+                                    'Market': 'KOSPI' if sosok == 0 else 'KOSDAQ',
+                                    'Amount': close_val * vol_val
+                                })
+                            except:
+                                pass
+        df_fallback = pd.DataFrame(results)
+        if not df_fallback.empty:
+            df_fallback['Stocks'] = df_fallback['Marcap'] / df_fallback['Close'].replace(0, 1)
+            return df_fallback
     except Exception as e:
-        print("get_krx_stock_list error:", e)
-        return pd.DataFrame()
+        print("Naver fallback error:", e)
+        
+    return pd.DataFrame()
 
 @st.cache_data(ttl=3600)
 def scan_hybrid_flow(min_mktcap=500, min_trading=10):
