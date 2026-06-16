@@ -29,20 +29,18 @@ def fetch_macro_data():
         try:
             df = yf.download(ticker, start=start_date.strftime('%Y-%m-%d'), end=end_date.strftime('%Y-%m-%d'), progress=False)
             if not df.empty:
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = df.columns.get_level_values(0)
+                    
                 df = df.dropna(subset=['Close'])
                 if len(df) < 2: continue
                 # Get the last two valid rows for price and change
                 last_row = df.iloc[-1]
                 prev_row = df.iloc[-2]
                 
-                # Check for yfinance multi-index columns (happens sometimes)
-                if isinstance(last_row, pd.DataFrame) or isinstance(last_row.index, pd.MultiIndex):
-                    current_price = float(df['Close'].iloc[-1].values[0])
-                    prev_price = float(df['Close'].iloc[-2].values[0])
-                else:
-                    current_price = float(last_row['Close'])
-                    prev_price = float(prev_row['Close'])
-                    
+                current_price = float(last_row['Close'])
+                prev_price = float(prev_row['Close'])
+                
                 change = current_price - prev_price
                 pct_change = (change / prev_price) * 100
                 
