@@ -214,7 +214,7 @@ def get_investor_flow(ticker, base_date, days=20, engine="자동"):
             
     return pd.DataFrame()
 
-@st.cache_data(ttl=86400)
+@st.cache_data(ttl=86399)
 def get_krx_stock_list():
     try:
         import FinanceDataReader as fdr
