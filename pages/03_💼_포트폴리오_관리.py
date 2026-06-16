@@ -13,24 +13,39 @@ data = load_portfolio()
 holdings = data.get("holdings", [])
 peaks = data.get("peaks", {})
 
+@st.cache_data(ttl=3600)
+def get_stock_list():
+    try:
+        df = fdr.StockListing('KRX')
+        return df[['Code', 'Name']].dropna()
+    except:
+        return pd.DataFrame(columns=['Code', 'Name'])
+
+stock_df = get_stock_list()
+stock_names = stock_df['Name'].tolist() if not stock_df.empty else []
+
 # 신규 종목 추가 폼
 with st.expander("➕ 새 종목 추가", expanded=False):
     with st.form("add_holding_form"):
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            ticker = st.text_input("종목코드 (예: 005930)")
+            name = st.selectbox("종목명 검색", [""] + stock_names)
         with col2:
-            name = st.text_input("종목명 (예: 삼성전자)")
+            broker = st.selectbox("증권사 (계좌)", ["키움증권", "삼성증권", "미래에셋증권", "NH투자증권", "KB증권", "한국투자증권", "토스증권", "카카오페이증권", "기타"])
         with col3:
             shares = st.number_input("수량", min_value=1, step=1)
         with col4:
             avg_price = st.number_input("평균단가", min_value=1, step=100)
             
         submitted = st.form_submit_button("추가")
-        if submitted and ticker and name:
-            add_holding(ticker, name, shares, avg_price)
-            st.success(f"{name} 종목이 추가되었습니다!")
-            st.rerun()
+        if submitted:
+            if not name:
+                st.error("종목을 선택해주세요.")
+            else:
+                ticker = stock_df[stock_df['Name'] == name]['Code'].values[0]
+                add_holding(ticker, name, shares, avg_price, broker)
+                st.success(f"[{broker}] {name} 종목이 추가되었습니다!")
+                st.rerun()
 
 st.markdown("---")
 st.subheader("📋 내 보유 종목 현황")
