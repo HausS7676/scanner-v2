@@ -214,11 +214,25 @@ def get_investor_flow(ticker, base_date, days=20, engine="자동"):
             
     return pd.DataFrame()
 
-@st.cache_data(ttl=86399)
+@st.cache_data(ttl=86400)
 def get_krx_stock_list():
+    import pandas as pd
+    import os
+    
+    # 1. 시도: 로컬 CSV 파일에서 종목 데이터 로드 (클라우드 차단 원천 방지)
+    try:
+        csv_path = os.path.join(os.path.dirname(__file__), 'krx_stock_list.csv')
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path, dtype={'Code': str})
+            df['Code'] = df['Code'].astype(str).str.zfill(6)
+            if not df.empty:
+                return df
+    except Exception as e:
+        print("CSV load error:", e)
+
+    # 2. 시도: fdr을 통한 실시간 로드
     try:
         import FinanceDataReader as fdr
-        import pandas as pd
         df_kospi = fdr.StockListing('KOSPI')
         df_kosdaq = fdr.StockListing('KOSDAQ')
         df = pd.concat([df_kospi, df_kosdaq], ignore_index=True)
