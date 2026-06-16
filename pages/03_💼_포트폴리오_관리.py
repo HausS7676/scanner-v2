@@ -26,6 +26,9 @@ def get_stock_list():
 stock_df = get_stock_list()
 stock_names = stock_df['Name'].tolist() if not stock_df.empty else []
 
+if not stock_names:
+    st.error("🚨 종목 데이터를 불러오지 못했습니다! `utils/data_engine.py` 파일이 정상적으로 깃허브의 `utils` 폴더에 업로드되었는지, 또는 캐시 초기화(Reboot app)가 되었는지 확인해주세요.")
+
 # 신규 종목 추가 폼
 with st.expander("➕ 새 종목 추가", expanded=False):
     with st.form("add_holding_form"):
