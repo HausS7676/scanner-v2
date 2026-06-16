@@ -218,11 +218,14 @@ def get_investor_flow(ticker, base_date, days=20, engine="자동"):
 def get_krx_stock_list():
     try:
         import FinanceDataReader as fdr
-        df = fdr.StockListing('KRX')
+        import pandas as pd
+        df_kospi = fdr.StockListing('KOSPI')
+        df_kosdaq = fdr.StockListing('KOSDAQ')
+        df = pd.concat([df_kospi, df_kosdaq], ignore_index=True)
         if not df.empty:
             return df
-    except:
-        pass
+    except Exception as e:
+        print("fdr KOSPI/KOSDAQ error:", e)
         
     try:
         import requests
@@ -233,13 +236,17 @@ def get_krx_stock_list():
         results = []
         for sosok in [0, 1]:  # 0: KOSPI, 1: KOSDAQ
             for page in range(1, 21): # Top 1000 stocks per market
-                url = f"https://finance.naver.com/sise/sise_market_sum.naver?sosok={sosok}&page={page}"
-                res = requests.get(url, headers=headers, timeout=5)
-                soup = BeautifulSoup(res.text, 'html.parser')
-                table = soup.select_one('table.type_2')
-                if not table: continue
-                
-                rows = table.select('tbody tr')
+                try:
+                    url = f"https://finance.naver.com/sise/sise_market_sum.naver?sosok={sosok}&page={page}"
+                    res = requests.get(url, headers=headers, timeout=5)
+                    soup = BeautifulSoup(res.text, 'html.parser')
+                    table = soup.select_one('table.type_2')
+                    if not table: continue
+                    
+                    rows = table.select('tbody tr')
+                except Exception as e:
+                    print(f"Naver page {page} error: {e}")
+                    continue
                 for row in rows:
                     cols = row.select('td')
                     if len(cols) > 5:
