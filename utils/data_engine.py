@@ -142,6 +142,25 @@ def load_ohlcv(ticker, base_date, days=300, engine="자동"):
             if not df.empty:
                 df = df.rename(columns={'Open': '시가', 'High': '고가', 'Low': '저가', 'Close': '종가', 'Volume': '거래량'})
         except: pass
+
+    if (df is None or df.empty):
+        try:
+            import yfinance as yf
+            yf_ticker = f"{ticker}.KS" if not ticker.endswith(('KS', 'KQ')) else ticker
+            if not ticker.endswith('KS') and not ticker.endswith('KQ') and int(ticker) >= 100000:
+                # heuristic: kosdaq vs kospi is hard without mapping, but let's try KS first, if empty KQ
+                df_yf = yf.download(yf_ticker, start=start.strftime('%Y-%m-%d'), end=end.strftime('%Y-%m-%d'), progress=False)
+                if df_yf.empty:
+                    yf_ticker = f"{ticker}.KQ"
+                    df_yf = yf.download(yf_ticker, start=start.strftime('%Y-%m-%d'), end=end.strftime('%Y-%m-%d'), progress=False)
+            else:
+                df_yf = yf.download(yf_ticker, start=start.strftime('%Y-%m-%d'), end=end.strftime('%Y-%m-%d'), progress=False)
+                
+            if not df_yf.empty:
+                df = df_yf.rename(columns={'Open': '시가', 'High': '고가', 'Low': '저가', 'Close': '종가', 'Volume': '거래량'})
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = df.columns.get_level_values(0)
+        except: pass
             
     return df if df is not None else pd.DataFrame()
 
@@ -202,8 +221,8 @@ def scan_hybrid_flow(min_mktcap=500, min_trading=10):
         # KOSPI, KOSDAQ 종목만 필터링 (스팩, 리츠 등 제외 가능하지만 우선 시장으로 필터링)
         df = df_krx[df_krx['Market'].isin(['KOSPI', 'KOSDAQ', 'KOSPI200'])].copy()
         
-        df['시가총액(억)'] = df['Marcap'] / 100000000
-        df['거래대금(억)'] = df['Amount'] / 100000000
+        df['시가총액(억)'] = pd.to_numeric(df['Marcap'], errors='coerce').fillna(0) / 100000000
+        df['거래대금(억)'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0) / 100000000
         
         # 필터링
         df = df[(df['시가총액(억)'] >= min_mktcap) & (df['거래대금(억)'] >= min_trading)].copy()
