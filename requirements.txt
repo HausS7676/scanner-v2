@@ -11,3 +11,4 @@ lxml
 
 supabase
 openpyxl
+yfinance
