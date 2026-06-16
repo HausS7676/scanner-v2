@@ -35,14 +35,15 @@ def add_holding(ticker, name, shares, avg_price, account="보유"):
     if existing:
         # Update existing
         total_shares = existing['shares'] + shares
-        if total_shares > 0:
-            existing['avg_price'] = ((existing['avg_price'] * existing['shares']) + (avg_price * shares)) / total_shares
+        if total_shares > 0 or (total_shares == 0 and account == "관심종목"):
+            if total_shares > 0:
+                existing['avg_price'] = ((existing['avg_price'] * existing['shares']) + (avg_price * shares)) / total_shares
             existing['shares'] = total_shares
         else:
             # If shares become 0 or less, remove it
             holdings.remove(existing)
     else:
-        if shares > 0:
+        if shares >= 0:
             holdings.append({
                 "ticker": ticker,
                 "name": name,

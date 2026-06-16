@@ -513,13 +513,17 @@ def render_detail_analysis(ticker, ticker_name, base_date, engine):
     df['MA5'] = df['종가'].rolling(5).mean()
     df['MA20'] = df['종가'].rolling(20).mean()
     df['MA60'] = df['종가'].rolling(60).mean()
+    df['MA120'] = df['종가'].rolling(120).mean()
     
     fig = go.Figure()
     fig.add_trace(go.Candlestick(
         x=df.index, open=df['시가'], high=df['고가'], low=df['저가'], close=df['종가'], name='일봉',
         increasing_line_color='#ef4444', decreasing_line_color='#3b82f6'
     ))
-    fig.add_trace(go.Scatter(x=df.index, y=df['MA20'], line=dict(color='#8b5cf6', width=2), name='20일선'))
+    fig.add_trace(go.Scatter(x=df.index, y=df['MA5'], line=dict(color='#fcd34d', width=1.5), name='5일선', opacity=0.8))
+    fig.add_trace(go.Scatter(x=df.index, y=df['MA20'], line=dict(color='#8b5cf6', width=1.5), name='20일선', opacity=0.8))
+    fig.add_trace(go.Scatter(x=df.index, y=df['MA60'], line=dict(color='#10b981', width=1.5), name='60일선', opacity=0.8))
+    fig.add_trace(go.Scatter(x=df.index, y=df['MA120'], line=dict(color='#64748b', width=1.5), name='120일선', opacity=0.8))
     fig.update_layout(height=400, xaxis_rangeslider_visible=False, template='plotly_dark', margin=dict(l=0, r=0, t=10, b=0), dragmode=False)
     st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
 
@@ -551,15 +555,22 @@ def render_detail_analysis(ticker, ticker_name, base_date, engine):
         from utils.portfolio_manager import add_holding
         with st.expander("💼 내 포트폴리오에 이 종목 담기", expanded=False):
             with st.form(f"add_pf_{ticker}"):
-                p_col1, p_col2 = st.columns(2)
+                p_col1, p_col2, p_col3 = st.columns([1.5, 1, 1.5])
                 with p_col1:
-                    pf_shares = st.number_input("매수 수량", min_value=1, step=1, key=f"pf_s_{ticker}")
+                    pf_account = st.selectbox("저장 위치 (증권사/관심종목)", ["관심종목", "키움증권", "KB증권", "NH투자증권", "미래에셋증권", "토스증권", "기타"], key=f"pf_a_{ticker}")
                 with p_col2:
-                    pf_price = st.number_input("매수 단가 (원)", min_value=1, value=int(current_price), step=100, key=f"pf_p_{ticker}")
-                pf_submit = st.form_submit_button("포트폴리오에 담기")
+                    pf_shares = st.number_input("매수 수량 (관심은 0)", min_value=0, step=1, key=f"pf_s_{ticker}")
+                with p_col3:
+                    pf_price = st.number_input("매수 단가 (원)", min_value=0, value=int(current_price), step=100, key=f"pf_p_{ticker}")
+                pf_submit = st.form_submit_button("저장하기")
+                
                 if pf_submit:
-                    add_holding(ticker, ticker_name, pf_shares, pf_price)
-                    st.success(f"✅ {ticker_name} 종목이 포트폴리오에 성공적으로 추가되었습니다! 왼쪽 메뉴의 [포트폴리오 관리]에서 실시간 손익을 확인하세요.")
+                    if pf_account == "관심종목" and pf_shares == 0:
+                        add_holding(ticker, ticker_name, 0, pf_price, account=pf_account)
+                        st.success(f"⭐ {ticker_name} 종목이 관심종목에 추가되었습니다! 왼쪽 메뉴의 [포트폴리오 관리]에서 확인하세요.")
+                    else:
+                        add_holding(ticker, ticker_name, pf_shares, pf_price, account=pf_account)
+                        st.success(f"✅ {ticker_name} 종목이 {pf_account}에 성공적으로 추가되었습니다! 왼쪽 메뉴의 [포트폴리오 관리]에서 확인하세요.")
     except Exception as e:
         pass
     
