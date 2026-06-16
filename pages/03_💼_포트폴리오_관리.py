@@ -16,10 +16,12 @@ peaks = data.get("peaks", {})
 @st.cache_data(ttl=3600)
 def get_stock_list():
     try:
-        df = fdr.StockListing('KRX')
-        return df[['Code', 'Name']].dropna()
+        df = get_krx_stock_list()
+        if not df.empty:
+            return df[['Code', 'Name']].dropna()
     except:
-        return pd.DataFrame(columns=['Code', 'Name'])
+        pass
+    return pd.DataFrame(columns=['Code', 'Name'])
 
 stock_df = get_stock_list()
 stock_names = stock_df['Name'].tolist() if not stock_df.empty else []
@@ -31,11 +33,11 @@ with st.expander("➕ 새 종목 추가", expanded=False):
         with col1:
             name = st.selectbox("종목명 검색", [""] + stock_names)
         with col2:
-            broker = st.selectbox("증권사 (계좌)", ["키움증권", "삼성증권", "미래에셋증권", "NH투자증권", "KB증권", "한국투자증권", "토스증권", "카카오페이증권", "기타"])
+            broker = st.selectbox("증권사 (계좌)", ["관심종목", "키움증권", "삼성증권", "미래에셋증권", "NH투자증권", "KB증권", "한국투자증권", "토스증권", "카카오페이증권", "기타"])
         with col3:
-            shares = st.number_input("수량", min_value=1, step=1)
+            shares = st.number_input("수량 (관심은 0)", min_value=0, step=1)
         with col4:
-            avg_price = st.number_input("평균단가", min_value=1, step=100)
+            avg_price = st.number_input("평균단가", min_value=0, step=100)
             
         submitted = st.form_submit_button("추가")
         if submitted:
@@ -103,18 +105,22 @@ else:
         
         # 상태 뱃지 생성 로직 (portfolio-web 컨벤션)
         status = []
-        if pnl_pct <= -9.0:
-            status.append("🔴 손절 경고 (-9% 하회)")
-        if trailing_drop <= -9.0:
-            status.append("🔵 트레일링 스탑 (고점대비 -9%)")
-            
-        if not status:
-            if pnl_pct > 0:
-                status.append("🟢 수익 중")
-            else:
-                status.append("⚪ 관망 중")
+        if s == 0:
+            status.append("👀 관심종목")
+        else:
+            if pnl_pct <= -9.0:
+                status.append("🔴 손절 경고 (-9% 하회)")
+            if trailing_drop <= -9.0:
+                status.append("🔵 트레일링 스탑 (고점대비 -9%)")
+                
+            if not status:
+                if pnl_pct > 0:
+                    status.append("🟢 수익 중")
+                else:
+                    status.append("⚪ 관망 중")
                 
         table_data.append({
+            "계좌": row.get('account', '보유'),
             "종목코드": t,
             "종목명": n,
             "수량": f"{s:,}주",

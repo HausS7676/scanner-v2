@@ -67,39 +67,33 @@ if macro_data:
         for j, (name, info) in enumerate(items[i:i+4]):
             with cols[j]:
                 with st.container(border=True):
-                st.metric(
-                    label=name,
-                    value=f"{info['price']:,.2f}",
-                    delta=f"{info['change']:,.2f} ({info['pct_change']:,.2f}%)"
-                )
-                
-                # Sparkline chart
-                hist = info['history']
-                fig = go.Figure()
-                
-                if isinstance(hist, pd.DataFrame):
-                    y_vals = hist.iloc[:, 0].values
-                else:
-                    y_vals = hist.values
+                    st.metric(
+                        label=name,
+                        value=f"{info['price']:,.2f}",
+                        delta=f"{info['change']:,.2f} ({info['pct_change']:,.2f}%)"
+                    )
                     
-                # Determine color based on pct_change over the 30 days
-                if len(y_vals) >= 2:
-                    color = '#ef4444' if y_vals[-1] > y_vals[0] else '#3b82f6'
-                else:
-                    color = '#3b82f6'
+                    # Sparkline chart
+                    hist = info['history']
+                    fig = go.Figure()
                     
-                fig.add_trace(go.Scatter(x=hist.index, y=y_vals, mode='lines', line=dict(color=color, width=2)))
-                fig.update_layout(
-                    height=100,
-                    margin=dict(l=0, r=0, t=0, b=0),
-                    xaxis=dict(visible=False),
-                    yaxis=dict(visible=False),
-                    showlegend=False,
-                    template='plotly_dark',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)'
-                )
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                    if isinstance(hist, pd.DataFrame):
+                        y_vals = hist.iloc[:, 0].values
+                    else:
+                        y_vals = hist.values
+                        
+                    color = "red" if y_vals[-1] > y_vals[0] else "blue"
+                    fig.add_trace(go.Scatter(y=y_vals, mode='lines', line=dict(color=color, width=2)))
+                    fig.update_layout(
+                        margin=dict(l=0, r=0, t=0, b=0),
+                        xaxis=dict(visible=False),
+                        yaxis=dict(visible=False),
+                        height=100,
+                        showlegend=False,
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)'
+                    )
+                    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 st.markdown("---")
 st.subheader("💡 시장 분석 및 트레이딩 전략 가이드")
