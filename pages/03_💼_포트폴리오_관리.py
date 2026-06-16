@@ -13,21 +13,44 @@ data = load_portfolio()
 holdings = data.get("holdings", [])
 peaks = data.get("peaks", {})
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=1)
 def get_stock_list():
+    import pandas as pd
+    import requests
+    from io import StringIO
+    
+    # 1. 깃허브에서 직접 CSV 읽어오기 (폴더 위치 실수 방어)
+    urls = [
+        "https://raw.githubusercontent.com/HausS7676/portfolio-web/main/utils/krx_stock_list.csv",
+        "https://raw.githubusercontent.com/HausS7676/portfolio-web/main/krx_stock_list.csv"
+    ]
+    for url in urls:
+        try:
+            res = requests.get(url, timeout=3)
+            if res.status_code == 200:
+                df = pd.read_csv(StringIO(res.text), dtype={'Code': str})
+                df['Code'] = df['Code'].astype(str).str.zfill(6)
+                if not df.empty and 'Name' in df.columns:
+                    return df[['Code', 'Name']].dropna()
+        except: pass
+
+    # 2. fdr KOSPI/KOSDAQ 실시간 로드
     try:
-        df = get_krx_stock_list()
+        import FinanceDataReader as fdr
+        df1 = fdr.StockListing('KOSPI')
+        df2 = fdr.StockListing('KOSDAQ')
+        df = pd.concat([df1, df2])
         if not df.empty:
             return df[['Code', 'Name']].dropna()
-    except:
-        pass
+    except: pass
+
     return pd.DataFrame(columns=['Code', 'Name'])
 
 stock_df = get_stock_list()
 stock_names = stock_df['Name'].tolist() if not stock_df.empty else []
 
 if not stock_names:
-    st.error("🚨 종목 데이터를 불러오지 못했습니다! `utils/data_engine.py` 파일이 정상적으로 깃허브의 `utils` 폴더에 업로드되었는지, 또는 캐시 초기화(Reboot app)가 되었는지 확인해주세요.")
+    st.error("🚨 종목 데이터를 불러오지 못했습니다! 방금 생성해드린 `krx_stock_list.csv` 파일을 깃허브에 꼭 업로드해주세요!")
 
 # 신규 종목 추가 폼
 with st.expander("➕ 새 종목 추가", expanded=False):
