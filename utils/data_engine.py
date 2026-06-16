@@ -212,11 +212,45 @@ def get_investor_flow(ticker, base_date, days=20, engine="자동"):
             
     return pd.DataFrame()
 
+@st.cache_data(ttl=86400)
+def get_krx_stock_list():
+    try:
+        import FinanceDataReader as fdr
+        df = fdr.StockListing('KRX')
+        if not df.empty:
+            return df
+    except:
+        pass
+        
+    try:
+        from pykrx import stock
+        date_str = get_latest_valid_date()
+        ohlcv = stock.get_market_ohlcv_by_ticker(date_str, market="ALL")
+        cap = stock.get_market_cap_by_ticker(date_str, market="ALL")
+        
+        df = pd.DataFrame(index=ohlcv.index)
+        df['Code'] = df.index
+        df['Name'] = cap['종목명'] if '종목명' in cap.columns else [stock.get_market_ticker_name(x) for x in df.index]
+        df['Close'] = ohlcv['종가'] if '종가' in ohlcv.columns else 0
+        df['ChagesRatio'] = ohlcv['등락률'] if '등락률' in ohlcv.columns else 0
+        df['Volume'] = ohlcv['거래량'] if '거래량' in ohlcv.columns else 0
+        df['Amount'] = ohlcv['거래대금'] if '거래대금' in ohlcv.columns else (cap['거래대금'] if '거래대금' in cap.columns else 0)
+        df['Marcap'] = cap['시가총액'] if '시가총액' in cap.columns else 0
+        df['Stocks'] = cap['상장주식수'] if '상장주식수' in cap.columns else 1
+        df['Market'] = 'KOSPI' # default
+        
+        return df
+    except Exception as e:
+        print("get_krx_stock_list error:", e)
+        return pd.DataFrame()
+
 @st.cache_data(ttl=3600)
 def scan_hybrid_flow(min_mktcap=500, min_trading=10):
     try:
-        import FinanceDataReader as fdr
-        df_krx = fdr.StockListing('KRX')
+        df_krx = get_krx_stock_list()
+        
+        if df_krx.empty:
+            return pd.DataFrame(), get_latest_valid_date()
         
         # KOSPI, KOSDAQ 종목만 필터링 (스팩, 리츠 등 제외 가능하지만 우선 시장으로 필터링)
         df = df_krx[df_krx['Market'].isin(['KOSPI', 'KOSDAQ', 'KOSPI200'])].copy()
