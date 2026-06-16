@@ -9,47 +9,64 @@ st.set_page_config(page_title="투자 전략 수립", page_icon="🧠", layout="
 st.title("🧠 전문가 투자 전략 수립")
 st.markdown("거시경제 흐름과 현재 보유 중인 포트폴리오의 기술적 위치를 종합 분석하여 최적의 매매 시나리오를 제시합니다.")
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=86400) # 1일 캐싱하여 장중 변동 최소화
 def analyze_macro_trend():
     end = datetime.now()
     start = end - timedelta(days=200)
+    
+    # Fetch Data
     nasdaq = yf.download("^IXIC", start=start.strftime('%Y-%m-%d'), end=end.strftime('%Y-%m-%d'), progress=False)
+    sp500 = yf.download("^GSPC", start=start.strftime('%Y-%m-%d'), end=end.strftime('%Y-%m-%d'), progress=False)
+    usdkrw = yf.download("KRW=X", start=start.strftime('%Y-%m-%d'), end=end.strftime('%Y-%m-%d'), progress=False)
     
-    if nasdaq.empty:
-        return "Unknown", 50
+    def get_close(df):
+        if df.empty: return pd.Series(dtype=float)
+        close = df['Close']
+        if isinstance(close, pd.DataFrame):
+            return close.iloc[:, 0].dropna()
+        return close.dropna()
         
-    close = nasdaq['Close']
-    if isinstance(close, pd.DataFrame):
-        close = close.iloc[:, 0]
-        
-    ma20 = close.rolling(20).mean().iloc[-1]
-    ma60 = close.rolling(60).mean().iloc[-1]
-    current = close.iloc[-1]
+    nq_close = get_close(nasdaq)
+    sp_close = get_close(sp500)
+    krw_close = get_close(usdkrw)
     
+    if len(nq_close) < 60 or len(sp_close) < 60 or len(krw_close) < 60:
+        return "데이터 부족 (Unknown)", 50, "데이터 수집 부족"
+        
+    nq_current, nq_ma20, nq_ma60 = nq_close.iloc[-1], nq_close.rolling(20).mean().iloc[-1], nq_close.rolling(60).mean().iloc[-1]
+    sp_current, sp_ma20 = sp_close.iloc[-1], sp_close.rolling(20).mean().iloc[-1]
+    krw_current, krw_ma20 = krw_close.iloc[-1], krw_close.rolling(20).mean().iloc[-1]
+    
+    score = 0
+    reasons = []
+    
+    if nq_current > nq_ma20: score += 1; reasons.append("나스닥 단기 상회(20일선)")
+    else: score -= 1; reasons.append("나스닥 단기 하회(20일선)")
+        
+    if nq_current > nq_ma60: score += 1; reasons.append("나스닥 중기 상회(60일선)")
+    else: score -= 1; reasons.append("나스닥 중기 하회(60일선)")
+        
+    if sp_current > sp_ma20: score += 1; reasons.append("S&P500 단기 상회(20일선)")
+    else: score -= 1; reasons.append("S&P500 단기 하회(20일선)")
+        
+    if krw_current > krw_ma20: score -= 1; reasons.append("환율 단기 상승(증시 부담)")
+    else: score += 1; reasons.append("환율 단기 하락(증시 호재)")
+        
     cash_weight = 50
-    market_status = "중립 (Neutral)"
-    
-    if current > ma20 and ma20 > ma60:
-        market_status = "강세장 (Bull Market)"
-        cash_weight = 20  # 주식 비중 확대
-    elif current < ma20 and ma20 < ma60:
-        market_status = "약세장 (Bear Market)"
-        cash_weight = 70  # 현금 비중 확대
-    elif current > ma60:
-        market_status = "조정 후 반등 (Recovery)"
-        cash_weight = 40
-    else:
-        market_status = "혼조세 (Mixed)"
-        cash_weight = 50
+    if score >= 3: market_status, cash_weight = "강세장 (Strong Bull)", 20
+    elif score == 2: market_status, cash_weight = "상승 전환 (Bull)", 30
+    elif score in [0, 1]: market_status, cash_weight = "혼조세 (Mixed)", 50
+    elif score == -2: market_status, cash_weight = "하락 우려 (Warning)", 60
+    else: market_status, cash_weight = "약세장 (Bear)", 80
         
-    return market_status, cash_weight
+    return market_status, cash_weight, " | ".join(reasons)
 
-market_status, cash_weight = analyze_macro_trend()
+market_status, cash_weight, reasons_str = analyze_macro_trend()
 
 col1, col2 = st.columns(2)
 with col1:
     st.info(f"### 🌐 글로벌 증시 상태: **{market_status}**")
-    st.write("나스닥 지수의 이동평균선(20일, 60일) 기반 트렌드 분석입니다.")
+    st.write(f"판단 근거: {reasons_str}")
 with col2:
     st.success(f"### 💰 권장 현금 비중: **{cash_weight}%**")
     st.write(f"현재 장세에서는 계좌 전체 자산 중 **{cash_weight}%**를 현금으로 보유하여 리스크를 관리하는 것을 권장합니다.")
