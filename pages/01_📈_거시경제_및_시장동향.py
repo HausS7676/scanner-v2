@@ -16,7 +16,9 @@ def fetch_macro_data():
         "Nasdaq": "^IXIC",
         "USD/KRW": "KRW=X",
         "US 10Y Yield": "^TNX",
-        "Crude Oil (WTI)": "CL=F"
+        "Crude Oil (WTI)": "CL=F",
+        "Gold": "GC=F",
+        "Bitcoin": "BTC-USD"
     }
     
     data = {}
@@ -27,6 +29,8 @@ def fetch_macro_data():
         try:
             df = yf.download(ticker, start=start_date.strftime('%Y-%m-%d'), end=end_date.strftime('%Y-%m-%d'), progress=False)
             if not df.empty:
+                df = df.dropna(subset=['Close'])
+                if len(df) < 2: continue
                 # Get the last two valid rows for price and change
                 last_row = df.iloc[-1]
                 prev_row = df.iloc[-2]
@@ -57,10 +61,12 @@ with st.spinner("거시경제 데이터를 불러오는 중..."):
     macro_data = fetch_macro_data()
 
 if macro_data:
-    cols = st.columns(len(macro_data))
-    for idx, (name, info) in enumerate(macro_data.items()):
-        with cols[idx]:
-            with st.container(border=True):
+    items = list(macro_data.items())
+    for i in range(0, len(items), 4):
+        cols = st.columns(4)
+        for j, (name, info) in enumerate(items[i:i+4]):
+            with cols[j]:
+                with st.container(border=True):
                 st.metric(
                     label=name,
                     value=f"{info['price']:,.2f}",
