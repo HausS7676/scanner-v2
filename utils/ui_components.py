@@ -83,12 +83,12 @@ def generate_expert_summary(ticker_name, comp_info, fin_df, cons_data, tech, inv
         if not for_series.empty:
             f_days, f_tot, f_type = get_consecutive_days(for_series)
             if f_days > 0:
-                for_msg = f"외국인은 최근 **{f_days}거래일 연속 {f_tot/1e8:,.0f}억 원을 {f_type}**하고 있습니다. "
+                for_msg = f"외국인은 최근 **{f_days}거래일 연속 {f_tot:,.0f}주를 {f_type}**하고 있습니다. "
                 
         if not ins_series.empty:
             i_days, i_tot, i_type = get_consecutive_days(ins_series)
             if i_days > 0:
-                ins_msg = f"기관은 최근 **{i_days}거래일 연속 {i_tot/1e8:,.0f}억 원을 {i_type}**하고 있습니다."
+                ins_msg = f"기관은 최근 **{i_days}거래일 연속 {i_tot:,.0f}주를 {i_type}**하고 있습니다."
                 
         if for_msg or ins_msg:
             summary += f"> {for_msg}{ins_msg}\n"
@@ -324,8 +324,22 @@ def render_detail_analysis(ticker, ticker_name, base_date, engine):
     col_price, col_score = st.columns([2, 1])
     with col_price:
         st.markdown(f"### {current_price:,}원", unsafe_allow_html=True)
+        import urllib.parse
+        # 섹터 파악 시도 (가벼운 예외 처리 포함)
+        sector = "알 수 없음"
+        try:
+            import FinanceDataReader as fdr
+            krx_df = fdr.StockListing('KRX')
+            sector = krx_df.loc[krx_df['Code'] == ticker, 'Sector'].values[0]
+        except:
+            pass
+            
+        query = f"{ticker_name}({ticker}) 주식 현재 상태 분석. 현재가 {current_price:,.0f}원. 섹터 {sector}. 오늘 등락 이유, 주요 뉴스·이슈, 투자 시 유의점을 일반 투자자가 알기 쉽게 정리해줘."
+        google_search_url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
+        st.link_button("🤖 구글 AI 검색 (종목 분석)", google_search_url)
+
     with col_score:
-        st.markdown(f"<div style='text-align:right;'><h2 style='color:#10b981; margin-bottom:0; font-size:3rem;'>{total_score}</h2><span style='color:gray;'>종합 점수</span></div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align:right;'><h2 style='color:#10b981; margin-bottom:0; font-size:3rem;'>{total_score}</h2><span style='color:gray;font-weight:bold;'>종합 점수</span><br><span style='font-size:0.8rem;color:#94a3b8;'>※ 1,000점 만점 기준 (수급, 추세, 모멘텀, 펀더멘털 등 8개 지표 종합 평가)</span></div>", unsafe_allow_html=True)
     
     st.markdown("<hr>", unsafe_allow_html=True)
     with st.container(border=True):
@@ -483,7 +497,7 @@ def render_detail_analysis(ticker, ticker_name, base_date, engine):
         st.plotly_chart(fig_inv, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
         
         # 합계 테이블
-        st.markdown("**기간별 누적 순매수 대금 (원)**")
+        st.markdown("**기간별 누적 순매수량 (주)**")
         periods = list(range(1, 21)) + [60, 120, 200]
         table_data = []
         for p in periods:
