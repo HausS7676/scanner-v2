@@ -54,10 +54,10 @@ if not stock_names:
 
 # 신규 종목 추가 폼
 with st.expander("➕ 새 종목 추가", expanded=False):
-    with st.form("add_holding_form"):
+    with st.form("add_holding_form", clear_on_submit=True):
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            name = st.selectbox("종목명 검색", [""] + stock_names)
+            names = st.multiselect("종목명 검색 (여러 개 선택 가능)", stock_names)
         with col2:
             broker = st.selectbox("증권사 (계좌)", ["관심종목", "키움증권", "삼성증권", "미래에셋증권", "NH투자증권", "KB증권", "한국투자증권", "토스증권", "카카오페이증권", "기타"])
         with col3:
@@ -67,16 +67,20 @@ with st.expander("➕ 새 종목 추가", expanded=False):
             
         submitted = st.form_submit_button("추가")
         if submitted:
-            if not name:
-                st.error("종목을 선택해주세요.")
+            if not names:
+                st.error("종목을 하나 이상 선택해주세요.")
             else:
-                ticker = stock_df[stock_df['Name'] == name]['Code'].values[0]
-                add_holding(ticker, name, shares, avg_price, broker)
-                st.success(f"[{broker}] {name} 종목이 추가되었습니다!")
-                st.rerun()
+                for name in names:
+                    ticker = stock_df[stock_df['Name'] == name]['Code'].values[0]
+                    add_holding(ticker, name, shares, avg_price, broker)
+                st.success(f"[{broker}] {len(names)}개 종목이 추가되었습니다!")
 
 st.markdown("---")
 st.subheader("📋 내 보유 종목 현황")
+
+# 폼 제출 후 업데이트된 데이터를 다시 불러오기
+data = load_portfolio()
+holdings = data.get("holdings", [])
 
 if not holdings:
     st.info("현재 등록된 보유 종목이 없습니다. 위 메뉴에서 새 종목을 추가해 보세요.")
