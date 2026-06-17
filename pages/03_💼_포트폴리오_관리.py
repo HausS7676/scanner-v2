@@ -190,18 +190,19 @@ else:
     
     # 기본적으로 '계좌(증권사)' 기준으로 1차 정렬, '종목명' 기준으로 2차 정렬합니다.
     res_df = res_df.sort_values(by=['계좌', '종목명']).reset_index(drop=True)
+    res_df["삭제"] = False  # 삭제 체크박스 컬럼 추가
     
     with st.form("edit_portfolio_form"):
         edited_df = st.data_editor(
             res_df,
             column_config={
+                "삭제": st.column_config.CheckboxColumn("🗑️ 삭제", default=False),
                 "계좌": st.column_config.SelectboxColumn("계좌", options=["관심종목", "키움증권", "삼성증권", "미래에셋증권", "NH투자증권", "KB증권", "한국투자증권", "토스증권", "카카오페이증권", "현대차증권", "기타"]),
                 "수량": st.column_config.NumberColumn("수량 (주)", min_value=0, step=1),
                 "평균단가": st.column_config.NumberColumn("평균단가 (원)", min_value=0, step=100),
             },
             disabled=["종목코드", "종목명", "투자원금", "평가금액", "수익률(%)", "상태 (알림)", "현재가"],
-            use_container_width=True,
-            num_rows="dynamic"
+            use_container_width=True
         )
         
         col1, col2 = st.columns([1, 4])
@@ -209,6 +210,8 @@ else:
             save_changes = st.form_submit_button("💾 테이블 변경사항 저장", type="primary")
             
         if save_changes:
+            st.write("Debug: Form submitted!")
+            st.write("Edited DF Head:", edited_df.head(2))
             from datetime import datetime
             from utils.portfolio_manager import save_portfolio
             
@@ -216,6 +219,10 @@ else:
             new_holdings = []
             
             for _, row in edited_df.iterrows():
+                # 체크박스로 삭제를 선택했거나 수량을 0으로 만든 경우 저장하지 않음 (삭제됨)
+                if row.get("삭제", False) == True or int(row["수량"]) <= 0:
+                    continue
+                    
                 # Ensure proper string conversion and handle possible float formatting
                 t_code = str(row["종목코드"]).zfill(6) if str(row["종목코드"]).isdigit() else str(row["종목코드"])
                 acc = str(row["계좌"])
