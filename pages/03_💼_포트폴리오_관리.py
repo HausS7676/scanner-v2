@@ -186,6 +186,8 @@ else:
     st.markdown("---")
     st.markdown("💡 **Tip:** 아래 표의 **수량**, **평균단가**, **계좌** 부분을 클릭하면 엑셀처럼 **직접 수정**할 수 있습니다. 수정을 완료한 후 반드시 하단의 **[💾 테이블 변경사항 저장]** 버튼을 눌러주세요. 행을 선택하고 Delete 키를 누르면 **삭제**도 가능합니다.")
     
+    res_df = pd.DataFrame(table_data)
+    
     # 기본적으로 '계좌(증권사)' 기준으로 1차 정렬, '종목명' 기준으로 2차 정렬합니다.
     res_df = res_df.sort_values(by=['계좌', '종목명']).reset_index(drop=True)
     
