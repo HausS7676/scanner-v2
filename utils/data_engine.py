@@ -524,8 +524,8 @@ def get_detailed_investor_flow(ticker, base_date):
                                 break
                 if rows:
                     dfclean = pd.DataFrame(rows).dropna(subset=['날짜']).set_index('날짜').sort_index()
-                    dfclean['기관합계'] = dfclean['기관_순매매량']
-                    dfclean['외국인합계'] = dfclean['외국인_순매매량']
+                    dfclean['기관합계'] = dfclean['기관_순매매량'].fillna(0)
+                    dfclean['외국인합계'] = dfclean['외국인_순매매량'].fillna(0)
                     dfclean['개인'] = -(dfclean['기관합계'] + dfclean['외국인합계'])
 
         if dfclean.empty: return pd.DataFrame()

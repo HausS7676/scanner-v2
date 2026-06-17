@@ -93,15 +93,23 @@ def generate_expert_summary(ticker_name, comp_info, fin_df, cons_data, tech, inv
         if for_msg or ins_msg:
             summary += f"> {for_msg}{ins_msg}\n"
             
-            recent_for = inv_detail_df['외국인_누적'].iloc[-1] - inv_detail_df['외국인_누적'].iloc[-20] if len(inv_detail_df) >= 20 else 0
-            recent_ins = inv_detail_df['기관_누적'].iloc[-1] - inv_detail_df['기관_누적'].iloc[-20] if len(inv_detail_df) >= 20 else 0
+            window = min(20, len(inv_detail_df))
+            if window > 1:
+                recent_for = inv_detail_df['외국인_누적'].iloc[-1] - inv_detail_df['외국인_누적'].iloc[-window]
+                recent_ins = inv_detail_df['기관_누적'].iloc[-1] - inv_detail_df['기관_누적'].iloc[-window]
+            else:
+                recent_for, recent_ins = 0, 0
             
             if recent_for > 0 and recent_ins > 0:
                 summary += "> 전반적인 한 달 흐름에서도 **외국인과 기관이 쌍끌이 매수** 중이므로 수급 모멘텀이 매우 강력합니다.\n"
             elif recent_for < 0 and recent_ins < 0:
                 summary += "> 전반적인 한 달 흐름에서도 **외국인과 기관이 쌍끌이 매도** 중이므로 수급 부담이 큰 상황입니다.\n"
+            elif recent_for > 0 and recent_ins <= 0:
+                summary += "> 한 달 기준으로 **외국인은 매수, 기관은 매도** 우위를 보이며 방향성이 엇갈리고 있습니다.\n"
+            elif recent_ins > 0 and recent_for <= 0:
+                summary += "> 한 달 기준으로 **기관은 매수, 외국인은 매도** 우위를 보이며 방향성이 엇갈리고 있습니다.\n"
             else:
-                summary += "> 한 달 기준으로는 두 주체의 방향성이 엇갈리고 있으니 단기 수급 변화에 주의하세요.\n"
+                summary += "> 한 달 기준으로 두 주체의 뚜렷한 매수세를 확인하기 어렵습니다.\n"
         else:
             summary += "> 외국인과 기관의 뚜렷한 연속 매수/매도세가 보이지 않습니다.\n"
     else:
