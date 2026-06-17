@@ -68,7 +68,7 @@ with st.expander("➕ 새 종목 추가 / 물타기(추가 매수)", expanded=Fa
                 st.markdown(f"🔹 **{name}**")
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    broker = st.selectbox("증권사 (계좌)", ["관심종목", "키움증권", "삼성증권", "미래에셋증권", "NH투자증권", "KB증권", "한국투자증권", "토스증권", "카카오페이증권", "기타"], key=f"broker_{name}")
+                    broker = st.selectbox("증권사 (계좌)", ["관심종목", "키움증권", "삼성증권", "미래에셋증권", "NH투자증권", "KB증권", "한국투자증권", "토스증권", "카카오페이증권", "현대차증권", "기타"], key=f"broker_{name}")
                 with col2:
                     shares = st.number_input("수량 (관심은 0)", min_value=0, step=1, key=f"shares_{name}")
                 with col3:
@@ -193,52 +193,59 @@ else:
         
     res_df = pd.DataFrame(table_data)
     
-    with st.form("edit_portfolio_form"):
-        edited_df = st.data_editor(
-            res_df.style.map(format_pct, subset=["수익률(%)"]).format({"수익률(%)": "{:.2f}%"}),
-            column_config={
-                "계좌": st.column_config.SelectboxColumn("계좌", options=["관심종목", "키움증권", "삼성증권", "미래에셋증권", "NH투자증권", "KB증권", "한국투자증권", "토스증권", "카카오페이증권", "기타"]),
-                "수량": st.column_config.NumberColumn("수량 (주)", min_value=0, step=1),
-                "평균단가": st.column_config.NumberColumn("평균단가 (원)", min_value=0, step=100),
-            },
-            disabled=["종목코드", "종목명", "투자원금", "평가금액", "수익률(%)", "상태 (알림)", "현재가"],
-            use_container_width=True,
-            num_rows="dynamic"
-        )
+    # 기본적으로 '계좌(증권사)' 기준으로 1차 정렬, '종목명' 기준으로 2차 정렬합니다.
+    res_df = res_df.sort_values(by=['계좌', '종목명']).reset_index(drop=True)
+    
+    edited_df = st.data_editor(
+        res_df.style.map(format_pct, subset=["수익률(%)"]).format({"수익률(%)": "{:.2f}%"}),
+        column_config={
+            "계좌": st.column_config.SelectboxColumn("계좌", options=["관심종목", "키움증권", "삼성증권", "미래에셋증권", "NH투자증권", "KB증권", "한국투자증권", "토스증권", "카카오페이증권", "현대차증권", "기타"]),
+            "수량": st.column_config.NumberColumn("수량 (주)", min_value=0, step=1),
+            "평균단가": st.column_config.NumberColumn("평균단가 (원)", min_value=0, step=100),
+        },
+        disabled=["종목코드", "종목명", "투자원금", "평가금액", "수익률(%)", "상태 (알림)", "현재가"],
+        use_container_width=True,
+        num_rows="dynamic",
+        key="portfolio_editor"
+    )
+    
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        save_changes = st.button("💾 테이블 변경사항 저장", type="primary")
         
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            save_changes = st.form_submit_button("💾 테이블 변경사항 저장", type="primary")
+    if save_changes:
+        from datetime import datetime
+        from utils.portfolio_manager import save_portfolio
+        
+        old_holdings = load_portfolio().get("holdings", [])
+        new_holdings = []
+        
+        for _, row in edited_df.iterrows():
+            # Ensure proper string conversion and handle possible float formatting
+            t_code = str(row["종목코드"]).zfill(6) if str(row["종목코드"]).isdigit() else str(row["종목코드"])
+            acc = str(row["계좌"])
             
-        if save_changes:
-            from datetime import datetime
-            from utils.portfolio_manager import save_portfolio
+            old_h = next((h for h in old_holdings if h['ticker'] == t_code and h.get('account', '보유') == acc), None)
+            b_date = old_h['buy_date'] if old_h and 'buy_date' in old_h else datetime.now().strftime("%Y-%m-%d")
             
-            old_holdings = load_portfolio().get("holdings", [])
-            new_holdings = []
+            new_holdings.append({
+                "ticker": t_code,
+                "name": str(row["종목명"]),
+                "shares": int(row["수량"]),
+                "avg_price": float(row["평균단가"]),
+                "account": acc,
+                "buy_date": b_date
+            })
             
-            # The style wrapper hides the underlying dataframe data if we don't access .data
-            # When edited, it returns a styled dataframe? No, data_editor returns a regular DataFrame
-            for _, row in edited_df.iterrows():
-                t_code = str(row["종목코드"])
-                acc = str(row["계좌"])
-                
-                old_h = next((h for h in old_holdings if h['ticker'] == t_code and h.get('account', '보유') == acc), None)
-                b_date = old_h['buy_date'] if old_h and 'buy_date' in old_h else datetime.now().strftime("%Y-%m-%d")
-                
-                new_holdings.append({
-                    "ticker": t_code,
-                    "name": str(row["종목명"]),
-                    "shares": int(row["수량"]),
-                    "avg_price": float(row["평균단가"]),
-                    "account": acc,
-                    "buy_date": b_date
-                })
-                
-            data = load_portfolio()
-            data["holdings"] = new_holdings
-            save_portfolio(data)
-            st.success("포트폴리오가 성공적으로 업데이트되었습니다!")
-            st.rerun()
+        data = load_portfolio()
+        data["holdings"] = new_holdings
+        save_portfolio(data)
+        
+        # Clear the data_editor session state so it doesn't re-apply old edits to the new data
+        if "portfolio_editor" in st.session_state:
+            del st.session_state["portfolio_editor"]
+            
+        st.success("포트폴리오가 성공적으로 업데이트되었습니다!")
+        st.rerun()
 
 st.info("💡 **수익률 계산 방식**: 보수적인 포트폴리오 관리를 위해 매도 수수료(0.2%)를 미리 차감한 '실수익 기준'으로 계산됩니다.")
