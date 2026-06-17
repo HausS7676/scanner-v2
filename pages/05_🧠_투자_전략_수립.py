@@ -9,6 +9,15 @@ st.set_page_config(page_title="투자 전략 수립", page_icon="🧠", layout="
 st.title("🧠 전문가 투자 전략 수립")
 st.markdown("거시경제 흐름과 현재 보유 중인 포트폴리오의 기술적 위치를 종합 분석하여 최적의 매매 시나리오를 제시합니다.")
 
+@st.cache_data(ttl=86400)
+def get_krx_sector():
+    import FinanceDataReader as fdr
+    try:
+        df = fdr.StockListing('KRX')
+        return df.set_index('Code')['Sector'].to_dict()
+    except:
+        return {}
+
 @st.cache_data(ttl=86400) # 1일 캐싱하여 장중 변동 최소화
 def analyze_macro_trend():
     end = datetime.now()
@@ -93,10 +102,23 @@ else:
                 continue
                 
             close = df['Close']
+            current = close.iloc[-1]
+            prev_close = close.iloc[-2] if len(close) > 1 else current
+            
+            # 이동평균선
             ma20 = close.rolling(20).mean().iloc[-1]
             ma60 = close.rolling(60).mean().iloc[-1]
-            current = close.iloc[-1]
             
+            # 볼린저 밴드 (20, 2)
+            std20 = close.rolling(20).std().iloc[-1]
+            bb_upper = ma20 + (std20 * 2)
+            bb_lower = ma20 - (std20 * 2)
+            
+            # 최근 20일 전고/전저
+            high20 = df['High'].tail(20).max()
+            low20 = df['Low'].tail(20).min()
+            
+            # RSI
             delta = close.diff()
             up = delta.clip(lower=0)
             down = (-delta).clip(lower=0)
@@ -106,36 +128,42 @@ else:
             
             pnl_pct = ((current * 0.998 - avg_price) / avg_price) * 100
             
-            # 전략 로직
-            strategy = ""
-            action = ""
-            color = ""
-            
-            if pnl_pct <= -9.0:
-                action = "🚨 기계적 손절 요망"
-                strategy = "원칙에 따라 손절선(-9%)을 이탈했습니다. 리스크 관리를 위해 비중 축소 또는 전량 매도를 고려하세요."
-                color = "error"
-            elif current_rsi >= 75:
-                action = "✂️ 분할 매도 (차익 실현)"
-                strategy = f"RSI가 {current_rsi:.1f}로 심각한 과매수 구간입니다. 단기 고점일 확률이 높으므로 보유 물량의 30~50%를 익절하세요."
-                color = "warning"
-            elif current_rsi <= 30 and current > ma60:
-                action = "🛒 분할 매수 (비중 확대)"
-                strategy = f"중장기 추세(60일선)는 살아있으나 단기 낙폭이 과대합니다 (RSI {current_rsi:.1f}). 지지선 부근에서 분할 매수를 고려하세요."
-                color = "success"
-            elif current > ma20:
-                action = "🧘‍♂️ 강력 보유 (Hold)"
-                strategy = "20일선 위에서 안정적인 추세를 유지하고 있습니다. 수익을 극대화하며 보유하세요."
-                color = "info"
+            # 5대 매매 시나리오 분기
+            if pnl_pct > 0 and current > ma20 and current >= bb_upper * 0.98:
+                action = "🔥 불타기 (추세 추종)"
+                strategy = f"완벽한 상승 추세입니다. 단기 저항선인 **{bb_upper:,.0f}원**(볼린저 상단)을 강하게 돌파한다면 추세 연장을 기대하며 추가 매수(불타기)를 고려해 보세요."
+            elif pnl_pct > 0 and current_rsi >= 70:
+                action = "✂️ 부분 매도 & 트레일링 스탑"
+                ts_price = high20 * 0.95
+                strategy = f"단기 과열권(RSI {current_rsi:.1f})입니다. 전고점 부근인 **{high20:,.0f}원**에서 절반을 익절하여 수익을 챙기고, 남은 물량은 고점 대비 5% 하락한 **{ts_price:,.0f}원**을 트레일링 스탑(익절선)으로 잡으세요."
+            elif pnl_pct < 0 and current_rsi <= 30:
+                action = "💧 물타기 (낙폭 과대)"
+                strategy = f"단기 낙폭이 과대합니다(RSI {current_rsi:.1f}). 무리한 손절보다는 하단 지지선인 **{low20:,.0f}원**(최근 저점) 부근에서 1차 물타기를 통해 평단가를 낮추는 전략이 유효합니다."
+            elif pnl_pct <= -9.0 or current < ma60 * 0.98:
+                action = "🚨 기계적 손절 / 비중 축소"
+                strategy = f"리스크 관리 한계선(-9%)을 이탈했거나 장기 추세가 무너졌습니다. 기술적 반등 시 **{ma20:,.0f}원**(20일선) 부근에서 비중을 대폭 축소하거나 손절을 권장합니다."
             else:
-                action = "👀 관망 (Wait & See)"
-                strategy = "명확한 방향성이 부재합니다. 신규 매수는 자제하고 기존 물량만 홀딩하세요."
-                color = "normal"
+                action = "👀 관망 (박스권 횡보)"
+                strategy = f"현재 뚜렷한 방향성 없이 혼조세입니다. 하단 지지선 **{low20:,.0f}원**과 상단 저항선 **{high20:,.0f}원** 사이의 박스권을 확실히 돌파할 때까지 신규 매매를 자제하세요."
+                
+            # AI 검색 쿼리 및 URL 생성
+            import urllib.parse
+            delta_pct = ((current - prev_close) / prev_close) * 100
+            sector_dict = get_krx_sector()
+            sector = sector_dict.get(ticker, "알 수 없음")
+            
+            query = f"{name}({ticker}) 주식 현재 상태 분석. 현재가 {current:,.0f}원 ({delta_pct:+.1f}%). 섹터 {sector}. 오늘 등락 이유, 주요 뉴스·이슈, 투자 시 유의점을 일반 투자자가 알기 쉽게 정리해줘."
+            google_search_url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
                 
             with st.expander(f"📌 {name} ({ticker}) - 현재가: {current:,.0f}원 | 내 평단: {avg_price:,.0f}원 | 수익률: {pnl_pct:.2f}%", expanded=True):
-                st.markdown(f"**전략 요약:** {action}")
+                col_a, col_b = st.columns([3, 1])
+                with col_a:
+                    st.markdown(f"**전략 요약:** {action}")
+                with col_b:
+                    st.link_button("🤖 구글 AI 검색", google_search_url, use_container_width=True)
+                    
                 st.write(strategy)
-                st.caption(f"기술적 지표 - RSI: {current_rsi:.1f} | 20일선: {ma20:,.0f}원 | 60일선: {ma60:,.0f}원")
+                st.caption(f"기술적 지표 - RSI: {current_rsi:.1f} | 20일선: {ma20:,.0f}원 | 60일선: {ma60:,.0f}원 | 전고점: {high20:,.0f}원 | 전저점: {low20:,.0f}원")
                 
         except Exception as e:
             continue
