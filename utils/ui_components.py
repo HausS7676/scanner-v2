@@ -108,9 +108,9 @@ def generate_expert_summary(ticker_name, comp_info, fin_df, cons_data, tech, inv
         summary += "> 최근 수급 동향을 파악할 수 없습니다.\n"
         
     if tech:
-        if tech['추세'] == "정배열 상승추세":
+        if "정배열" in tech['추세']:
             summary += "> 차트상으로도 **모든 이동평균선이 정배열(위로 향함)인 상승 추세**입니다. 상승 모멘텀이 매우 좋습니다.\n"
-        elif tech['추세'] == "역배열 하락추세":
+        elif "역배열" in tech['추세']:
             summary += "> 차트상으로는 **이동평균선이 역배열인 하락 추세**입니다. 바닥이 확인되기 전까지는 섣부른 매수보다는 관망하는 것이 좋습니다.\n"
         else:
             summary += "> 차트상 뚜렷한 방향성이 없는 혼조세입니다.\n"
@@ -621,9 +621,9 @@ def generate_etf_expert_summary(ticker_name, etf_info, tech, inv_detail_df):
         summary += "> 최근 수급 동향을 파악할 수 없습니다.\n"
         
     if tech:
-        if tech['추세'] == "정배열 상승추세":
+        if "정배열" in tech['추세']:
             summary += "> 차트상으로 **상승 추세(정배열)**를 그리고 있습니다.\n"
-        elif tech['추세'] == "역배열 하락추세":
+        elif "역배열" in tech['추세']:
             summary += "> 차트상으로는 **하락 추세(역배열)**입니다. 바닥 확인이 필요합니다.\n"
         else:
             summary += "> 차트상 뚜렷한 방향성이 없는 혼조세입니다.\n"
