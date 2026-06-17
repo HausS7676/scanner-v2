@@ -302,6 +302,48 @@ def render_radar_and_scores(df, tech, inv_detail_df, comp_info, cons_data):
 
     return total_score, scores, details, subdetails
 
+def get_stock_summary(ticker, ticker_name, base_date, engine):
+    is_etf = check_is_etf(ticker)
+    df = load_ohlcv(ticker, base_date, 300, engine)
+    if df.empty:
+        return None
+    
+    current_price = df['종가'].iloc[-1]
+    prev_close = df['종가'].iloc[-2] if len(df) > 1 else current_price
+    change_rate = (current_price - prev_close) / prev_close * 100
+    
+    inv_detail_df = get_detailed_investor_flow(ticker, base_date)
+    recent_for = 0
+    recent_ins = 0
+    if not inv_detail_df.empty:
+        window = min(20, len(inv_detail_df))
+        if window > 1:
+            recent_for = inv_detail_df['외국인_누적'].iloc[-1] - inv_detail_df['외국인_누적'].iloc[-window]
+            recent_ins = inv_detail_df['기관_누적'].iloc[-1] - inv_detail_df['기관_누적'].iloc[-window]
+            
+    if is_etf:
+        total_score = None
+        trend = "-"
+    else:
+        tech = analyze_technical(df)
+        comp_info = get_company_info(ticker)
+        cons_data = get_consensus_and_valuation(ticker)
+        score, scores, details, subdetails = render_radar_and_scores(df, tech, inv_detail_df, comp_info, cons_data)
+        total_score = score
+        trend = details.get('추세강도', '-')
+        
+    return {
+        '종목명': ticker_name,
+        '코드': ticker,
+        '종류': 'ETF' if is_etf else '주식',
+        '현재가(원)': current_price,
+        '등락률(%)': round(change_rate, 2),
+        '종합점수': total_score,
+        '외국인 20일(주)': int(recent_for),
+        '기관 20일(주)': int(recent_ins),
+        '단기추세': trend
+    }
+
 def render_detail_analysis(ticker, ticker_name, base_date, engine):
     is_etf = check_is_etf(ticker)
     
