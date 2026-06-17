@@ -192,7 +192,8 @@ else:
     res_df = res_df.sort_values(by=['계좌', '종목명']).reset_index(drop=True)
     res_df["삭제"] = False  # 삭제 체크박스 컬럼 추가
     
-    with st.form("edit_portfolio_form"):
+    @st.fragment
+    def render_portfolio_editor():
         edited_df = st.data_editor(
             res_df,
             column_config={
@@ -202,16 +203,15 @@ else:
                 "평균단가": st.column_config.NumberColumn("평균단가 (원)", min_value=0, step=100),
             },
             disabled=["종목코드", "종목명", "투자원금", "평가금액", "수익률(%)", "상태 (알림)", "현재가"],
-            use_container_width=True
+            use_container_width=True,
+            key="portfolio_editor_widget"
         )
         
         col1, col2 = st.columns([1, 4])
         with col1:
-            save_changes = st.form_submit_button("💾 테이블 변경사항 저장", type="primary")
+            save_changes = st.button("💾 테이블 변경사항 저장", type="primary")
             
         if save_changes:
-            st.write("Debug: Form submitted!")
-            st.write("Edited DF Head:", edited_df.head(2))
             from datetime import datetime
             from utils.portfolio_manager import save_portfolio
             
@@ -243,7 +243,13 @@ else:
             data["holdings"] = new_holdings
             save_portfolio(data)
             
+            # Flush session state for the editor
+            if "portfolio_editor_widget" in st.session_state:
+                del st.session_state["portfolio_editor_widget"]
+                
             st.success("포트폴리오가 성공적으로 업데이트되었습니다!")
             st.rerun()
+
+    render_portfolio_editor()
 
 st.info("💡 **수익률 계산 방식**: 보수적인 포트폴리오 관리를 위해 매도 수수료(0.2%)를 미리 차감한 '실수익 기준'으로 계산됩니다.")
