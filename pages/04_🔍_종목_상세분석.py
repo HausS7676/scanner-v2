@@ -66,33 +66,40 @@ st.title("🔍 종목 심층 분석 및 AI 트레이딩 전략")
 with st.form("search_form", clear_on_submit=False):
     col1, col2 = st.columns([1, 2])
     with col1:
-        search_query = st.text_input("종목명 또는 종목코드 6자리를 입력하세요", value="", placeholder="종목명 또는 코드 입력 후 엔터")
+        search_query = st.text_input("종목명 또는 종목코드 6자리를 입력하세요 (쉼표로 구분하여 여러 종목 동시 비교 가능)", value="", placeholder="예: 삼성전자, SK하이닉스, 005380")
         engine = st.session_state.get('data_engine', '자동')
         
     submitted = st.form_submit_button("분석 시작", type="primary")
 
 if submitted:
-    query = search_query.strip()
-    if not query:
+    raw_queries = [q.strip() for q in search_query.split(',') if q.strip()]
+    if not raw_queries:
         st.warning("종목명이나 코드를 입력해주세요.")
     else:
+        if len(raw_queries) > 3:
+            st.warning("화면 너비상 한 번에 최대 3종목까지만 나란히 비교 분석할 수 있습니다. 처음 3개 종목만 분석합니다.")
+            raw_queries = raw_queries[:3]
+            
         mapping = get_krx_mapping()
         mapping_upper = {str(k).upper(): v for k, v in mapping.items()}
-        query_upper = query.upper()
-        
-        # 종목명으로 입력한 경우 코드 변환
-        if query_upper in mapping_upper:
-            ticker = mapping_upper[query_upper]
-            # 원래 이름 찾기
-            reverse_mapping = {v: k for k, v in mapping.items()}
-            ticker_name = reverse_mapping.get(ticker, query)
-        else:
-            ticker = query_upper
-            # 코드로 입력한 경우 이름 찾기 (역방향)
-            reverse_mapping = {v: k for k, v in mapping.items()}
-            ticker_name = reverse_mapping.get(ticker, ticker)
-            
+        reverse_mapping = {v: k for k, v in mapping.items()}
         base_date = get_latest_valid_date()
         
-        with st.spinner(f"'{ticker_name}' ({ticker}) 종목 데이터 및 기관 수급 분석 중..."):
-            render_detail_analysis(ticker, ticker_name, base_date, engine)
+        # 컬럼 동적 생성
+        cols = st.columns(len(raw_queries))
+        
+        for idx, query in enumerate(raw_queries):
+            with cols[idx]:
+                query_upper = query.upper()
+                
+                # 종목명으로 입력한 경우 코드 변환
+                if query_upper in mapping_upper:
+                    ticker = mapping_upper[query_upper]
+                    ticker_name = reverse_mapping.get(ticker, query)
+                else:
+                    ticker = query_upper
+                    # 코드로 입력한 경우 이름 찾기 (역방향)
+                    ticker_name = reverse_mapping.get(ticker, ticker)
+                    
+                with st.spinner(f"'{ticker_name}' ({ticker}) 분석 중..."):
+                    render_detail_analysis(ticker, ticker_name, base_date, engine)
