@@ -137,11 +137,17 @@ def load_ohlcv(ticker, base_date, days=300, engine="자동"):
         except: pass
             
     if (df is None or df.empty) and use_fdr:
-        try:
-            df = fdr.DataReader(ticker, start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
-            if not df.empty:
-                df = df.rename(columns={'Open': '시가', 'High': '고가', 'Low': '저가', 'Close': '종가', 'Volume': '거래량'})
-        except: pass
+        import time
+        for attempt in range(3):
+            try:
+                df = fdr.DataReader(ticker, start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
+                if not df.empty:
+                    df = df.rename(columns={'Open': '시가', 'High': '고가', 'Low': '저가', 'Close': '종가', 'Volume': '거래량'})
+                    time.sleep(0.1)
+                    break
+            except:
+                time.sleep(0.5)
+                continue
 
     if (df is None or df.empty):
         try:
@@ -486,36 +492,40 @@ def get_recent_disclosures(ticker):
 
 @st.cache_data(ttl=3600)
 def get_recent_investor_flow_fast(ticker):
-    try:
-        import requests
-        from io import StringIO
-        import pandas as pd
-        url = f'https://finance.naver.com/item/frgn.naver?code={ticker}&page=1'
-        r = requests.get(url, headers=HEADERS, timeout=3)
-        r.encoding = 'euc-kr'
-        dfs = pd.read_html(StringIO(r.text), encoding='euc-kr')
-        rows = []
-        for d in dfs:
-            if len(d.columns) >= 7:
-                dates = pd.to_datetime(d.iloc[:, 0], format='%Y.%m.%d', errors='coerce').dropna()
-                if len(dates) >= 10:
-                    for idx, row in d.iterrows():
-                        if pd.isna(pd.to_datetime(row.iloc[0], format='%Y.%m.%d', errors='coerce')): continue
-                        rows.append({
-                            '날짜': pd.to_datetime(row.iloc[0], format='%Y.%m.%d'),
-                            '종가': pd.to_numeric(str(row.iloc[1]).replace(',', ''), errors='coerce'),
-                            '기관합계': pd.to_numeric(str(row.iloc[5]).replace(',', ''), errors='coerce'),
-                            '외국인합계': pd.to_numeric(str(row.iloc[6]).replace(',', ''), errors='coerce'),
-                        })
-                    break
-        if rows:
-            dfclean = pd.DataFrame(rows).dropna(subset=['날짜']).set_index('날짜').sort_index()
-            dfclean['기관합계'] = dfclean['기관합계'].fillna(0)
-            dfclean['외국인합계'] = dfclean['외국인합계'].fillna(0)
-            return dfclean
-        return pd.DataFrame()
-    except:
-        return pd.DataFrame()
+    import time
+    for attempt in range(3):
+        try:
+            import requests
+            from io import StringIO
+            import pandas as pd
+            url = f'https://finance.naver.com/item/frgn.naver?code={ticker}&page=1'
+            r = requests.get(url, headers=HEADERS, timeout=5)
+            r.encoding = 'euc-kr'
+            dfs = pd.read_html(StringIO(r.text), encoding='euc-kr')
+            rows = []
+            for d in dfs:
+                if len(d.columns) >= 7:
+                    dates = pd.to_datetime(d.iloc[:, 0], format='%Y.%m.%d', errors='coerce').dropna()
+                    if len(dates) >= 10:
+                        for idx, row in d.iterrows():
+                            if pd.isna(pd.to_datetime(row.iloc[0], format='%Y.%m.%d', errors='coerce')): continue
+                            rows.append({
+                                '날짜': pd.to_datetime(row.iloc[0], format='%Y.%m.%d'),
+                                '종가': pd.to_numeric(str(row.iloc[1]).replace(',', ''), errors='coerce'),
+                                '기관합계': pd.to_numeric(str(row.iloc[5]).replace(',', ''), errors='coerce'),
+                                '외국인합계': pd.to_numeric(str(row.iloc[6]).replace(',', ''), errors='coerce'),
+                            })
+                        break
+            if rows:
+                dfclean = pd.DataFrame(rows).dropna(subset=['날짜']).set_index('날짜').sort_index()
+                dfclean['기관합계'] = dfclean['기관합계'].fillna(0)
+                dfclean['외국인합계'] = dfclean['외국인합계'].fillna(0)
+                time.sleep(0.1) # Add small delay to prevent blocking
+                return dfclean
+        except:
+            time.sleep(0.5) # Wait longer on failure
+            continue
+    return pd.DataFrame()
 
 def get_detailed_investor_flow(ticker, base_date):
     try:
