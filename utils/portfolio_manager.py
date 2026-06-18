@@ -26,10 +26,13 @@ def save_portfolio(data):
     except Exception as e:
         print(f"Error saving portfolio: {e}")
 
-def add_holding(ticker, name, shares, avg_price, account="보유"):
+def add_holding(ticker, name, shares, avg_price, account="보유", buy_date=None, folder="", sector=""):
     data = load_portfolio()
     holdings = data.get("holdings", [])
     
+    if buy_date is None:
+        buy_date = datetime.now().strftime("%Y-%m-%d")
+        
     # Check if exists in the same account
     existing = next((item for item in holdings if item['ticker'] == ticker and item['account'] == account), None)
     if existing:
@@ -39,19 +42,26 @@ def add_holding(ticker, name, shares, avg_price, account="보유"):
             if total_shares > 0:
                 existing['avg_price'] = ((existing['avg_price'] * existing['shares']) + (avg_price * shares)) / total_shares
             existing['shares'] = total_shares
+            if account == "관심종목":
+                if folder: existing['folder'] = folder
+                if sector: existing['sector'] = sector
         else:
             # If shares become 0 or less, remove it
             holdings.remove(existing)
     else:
-        if shares >= 0:
-            holdings.append({
+        if shares >= 0 or account == "관심종목":
+            new_item = {
                 "ticker": ticker,
                 "name": name,
                 "shares": shares,
                 "avg_price": avg_price,
                 "account": account,
-                "buy_date": datetime.now().strftime("%Y-%m-%d")
-            })
+                "buy_date": buy_date
+            }
+            if account == "관심종목":
+                new_item["folder"] = folder
+                new_item["sector"] = sector
+            holdings.append(new_item)
     
     data["holdings"] = holdings
     save_portfolio(data)
