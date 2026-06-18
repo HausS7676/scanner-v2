@@ -58,37 +58,43 @@ if st.button('🚀 스캐너 가동', type="primary"):
                 flow_df = get_recent_investor_flow_fast(ticker)
                 
                 def calc_acc_score(series):
-                    if len(series) == 0: return 50, 0, 0
+                    if len(series) == 0: return 50, 0, 0, 0
+                    
+                    # 최근 20일 기준
+                    recent_series = series.tail(20)
+                    total_days = (recent_series > 0).sum()
+                    total_vol = recent_series[recent_series > 0].sum() - abs(recent_series[recent_series < 0].sum())
+                    
+                    # 연속 매수/매도일 계산
                     last_val = series.iloc[-1]
-                    days = 0
-                    total = 0
+                    consec_days = 0
                     if last_val > 0:
                         for v in series.values[::-1]:
-                            if v > 0: days += 1; total += v
+                            if v > 0: consec_days += 1
                             else: break
-                        score = min(50 + (days * 12) + (total / 100000), 100)
-                        return score, days, total
+                        score = min(50 + (total_days * 3) + (consec_days * 8) + (total_vol / 100000), 100)
+                        return score, total_days, consec_days, total_vol
                     elif last_val < 0:
                         for v in series.values[::-1]:
-                            if v < 0: days += 1; total += v
+                            if v < 0: consec_days += 1
                             else: break
-                        score = max(50 - (days * 12) - (abs(total) / 100000), 0)
-                        return score, -days, total
+                        score = max(50 - (total_days * 3) - (consec_days * 8) - (abs(total_vol) / 100000), 0)
+                        return score, total_days, -consec_days, total_vol
                     else:
-                        return 50, 0, 0
+                        return 50, total_days, 0, total_vol
                         
-                i_sc, i_dy, i_vol = 50, 0, 0
-                f_sc, f_dy, f_vol = 50, 0, 0
+                i_sc, i_tot_dy, i_cons_dy, i_vol = 50, 0, 0, 0
+                f_sc, f_tot_dy, f_cons_dy, f_vol = 50, 0, 0, 0
                 if not flow_df.empty:
-                    i_sc, i_dy, i_vol = calc_acc_score(flow_df['기관합계'])
-                    f_sc, f_dy, f_vol = calc_acc_score(flow_df['외국인합계'])
+                    i_sc, i_tot_dy, i_cons_dy, i_vol = calc_acc_score(flow_df['기관합계'])
+                    f_sc, f_tot_dy, f_cons_dy, f_vol = calc_acc_score(flow_df['외국인합계'])
                 
                 ins_scores.append(int(i_sc))
-                ins_days_list.append(i_dy)
-                ins_vols_list.append(i_vol)
+                ins_days_list.append(f"{i_tot_dy}일 / {i_cons_dy}일")
+                ins_vols_list.append(int(i_vol))
                 for_scores.append(int(f_sc))
-                for_days_list.append(f_dy)
-                for_vols_list.append(f_vol)
+                for_days_list.append(f"{f_tot_dy}일 / {f_cons_dy}일")
+                for_vols_list.append(int(f_vol))
                 
                 my_bar.progress((i + 1) / len(top_stocks))
                 
@@ -98,11 +104,11 @@ if st.button('🚀 스캐너 가동', type="primary"):
             top_stocks['추세'] = trends
             top_stocks['RSI'] = rsis
             top_stocks['기관매집점수'] = ins_scores
-            top_stocks['기관매집일'] = ins_days_list
-            top_stocks['기관매집량(주)'] = ins_vols_list
+            top_stocks['기관매집(20일중/연속)'] = ins_days_list
+            top_stocks['기관누적매집량(주)'] = ins_vols_list
             top_stocks['외국인매집점수'] = for_scores
-            top_stocks['외국인매집일'] = for_days_list
-            top_stocks['외국인매집량(주)'] = for_vols_list
+            top_stocks['외국인매집(20일중/연속)'] = for_days_list
+            top_stocks['외국인누적매집량(주)'] = for_vols_list
             
             top_stocks['거래대금_rank'] = top_stocks['거래대금(억)'].rank(pct=True)
             top_stocks['추천점수'] = top_stocks.apply(compute_recommendation_score, axis=1)
@@ -149,23 +155,23 @@ if st.session_state.scan_result is not None:
 
     with tab3:
         st.subheader("🏢 기관 매집 종목 (스마트머니)")
-        st.markdown("최근 기관 투자자가 연속적으로 가장 많이, 꾸준히 사들이고 있는 종목입니다.")
+        st.markdown("최근 20거래일 동안의 매집 강도와 연속 매수일을 복합적으로 분석하여 점수를 산출합니다.")
         df3 = top_stocks.sort_values('기관매집점수', ascending=False).reset_index(drop=True)
         df3 = df3[df3['기관매집점수'] > 50] # 순매수인 경우만 필터링
         df3.index += 1
         df3.insert(0, '순위', [rank_label(i) for i in df3.index])
         
-        event3 = st.dataframe(df3[['순위', '종목명', '현재가', '등락률(%)', '시가총액(억)', '기관매집일', '기관매집량(주)', '기관매집점수']].set_index('순위'), use_container_width=True, height=500, on_select="rerun", selection_mode="single-row", key="tab3_df")
+        event3 = st.dataframe(df3[['순위', '종목명', '현재가', '등락률(%)', '시가총액(억)', '기관매집(20일중/연속)', '기관누적매집량(주)', '기관매집점수']].set_index('순위'), use_container_width=True, height=500, on_select="rerun", selection_mode="single-row", key="tab3_df")
 
     with tab4:
         st.subheader("🗽 외국인 매집 종목 (글로벌 핫픽)")
-        st.markdown("최근 외국인 투자자가 연속적으로 가장 많이, 꾸준히 사들이고 있는 종목입니다.")
+        st.markdown("최근 20거래일 동안의 매집 강도와 연속 매수일을 복합적으로 분석하여 점수를 산출합니다.")
         df4 = top_stocks.sort_values('외국인매집점수', ascending=False).reset_index(drop=True)
         df4 = df4[df4['외국인매집점수'] > 50] # 순매수인 경우만 필터링
         df4.index += 1
         df4.insert(0, '순위', [rank_label(i) for i in df4.index])
         
-        event4 = st.dataframe(df4[['순위', '종목명', '현재가', '등락률(%)', '시가총액(억)', '외국인매집일', '외국인매집량(주)', '외국인매집점수']].set_index('순위'), use_container_width=True, height=500, on_select="rerun", selection_mode="single-row", key="tab4_df")
+        event4 = st.dataframe(df4[['순위', '종목명', '현재가', '등락률(%)', '시가총액(억)', '외국인매집(20일중/연속)', '외국인누적매집량(주)', '외국인매집점수']].set_index('순위'), use_container_width=True, height=500, on_select="rerun", selection_mode="single-row", key="tab4_df")
     
     st.markdown("---")
     st.subheader("🔍 선택 종목 팝업 상세 분석")
